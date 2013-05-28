@@ -14,6 +14,7 @@ import android.widget.Button;
 import android.location.*;
 
 import com.google.android.gms.maps.*;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
@@ -42,7 +43,7 @@ public class MainActivity extends Activity {
         
         // initialize the references to UI elements
         FragmentManager fm = getFragmentManager();
-        m_mapFragment = (MapFragment)fm.findFragmentById(R.id.map);
+        m_mapFragment = (MapFragment)fm.findFragmentById(R.id.map_fragment);
         m_gMap = m_mapFragment.getMap();
         
         m_searchBar = (EditText)findViewById(R.id.searchBar);
@@ -75,6 +76,7 @@ public class MainActivity extends Activity {
 	    		}
 	    		// scroll camera to first marker
 	    		 m_gMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(addrList.get(0).getLatitude(),addrList.get(0).getLongitude())));
+	    		 this.cacheView();
 	    	case PSEUDOCAST_AND_3G:
 	    		break;
 	    	case PSEUDOCAST_CACHE_ONLY:
@@ -84,6 +86,17 @@ public class MainActivity extends Activity {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+    }
+    
+    // cache the currently visible view
+    protected void cacheView() {
+    	CameraPosition camPosn = m_gMap.getCameraPosition();
+    	LatLng coords = camPosn.target;
+    	float zoomLvl = camPosn.zoom;
+    	
+    	String img_id = Double.toString(coords.latitude) + "-" + Double.toString(coords.longitude) + "-" + Float.toString(zoomLvl);
+    	
+    	Scraper.scrapeScreen(findViewById(R.id.map_fragment),img_id);
     }
 }
 
