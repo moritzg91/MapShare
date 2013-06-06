@@ -27,37 +27,37 @@ public class MainActivity extends Activity {
 		PSEUDOCAST_AND_3G, // actively schedule DL on other phones
 		PSEUDOCAST_CACHE_ONLY // just get data that other phones have in cache, but don't initiate downloads on other phones
 	};
-	
+
 	private MapFragment m_mapFragment;
 	private GoogleMap m_gMap;
 	private EditText m_searchBar;
 	private Button m_searchSubmitBtn;
 	private Geocoder m_geocoder;
 	private BroadcastManager m_broadcastMngr;
-	
+
 	private NetworkingMode m_NETWORKING_MODE;
-	
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        
+
         // manually set the networking mode here.
         m_NETWORKING_MODE = NetworkingMode.TRADITIONAL_3G_OR_WIFI;
-        
+
         m_broadcastMngr = new BroadcastManager();
-        
+
         // initialize the references to UI elements
         FragmentManager fm = getFragmentManager();
         m_mapFragment = (MapFragment)fm.findFragmentById(R.id.map_fragment);
         m_gMap = m_mapFragment.getMap();
-        
+
         m_searchBar = (EditText)findViewById(R.id.searchBar);
         m_searchSubmitBtn = (Button)findViewById(R.id.searchSubmitBtn);
-        
+
         // initialize geocoder
         m_geocoder = new Geocoder(this);
-        
+
         // set callback for search submit button
         m_searchSubmitBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -72,9 +72,9 @@ public class MainActivity extends Activity {
     	// get location from search string
     	try { //getFromLocationName throws exceptions, so we need the try/catch block
     		List<Address> addrList = m_geocoder.getFromLocationName(query, 10);
-    		
-    		Address chosenAddr = letUserPickAddress();
-    		
+
+    		Address chosenAddr = letUserPickAddress(addrList);
+
 			switch (m_NETWORKING_MODE) {
 	    	case TRADITIONAL_3G_OR_WIFI:
 	    		m_gMap.addMarker(new MarkerOptions()
@@ -87,9 +87,9 @@ public class MainActivity extends Activity {
 	    	case PSEUDOCAST_AND_3G:
 	    		List<MapSegment> segmentsToRequest = this.initSegmentList(chosenAddr);
 	    		List<Result> results = m_broadcastMngr.requestSegments(segmentsToRequest);
-	    			
+
 	    		this.renderMap(results);
-	    		
+
 	    		return;
 	    	case PSEUDOCAST_CACHE_ONLY:
 	    		break;
@@ -99,10 +99,35 @@ public class MainActivity extends Activity {
 			e.printStackTrace();
 		}
     }
-    
+    //we display every address, as a button maybe? Then user just hits
+    //whichever choice they want
+	protected void letUserPickAddress(addrList)
+	{	
+		list_len = addrList.size();
+		Button[] buttons = new Button[list_len];
+		for (int i = 0; i < list_len; i++)
+		{
+			button[i] = new Button(this);
+			button[i].setText(addrlist[i]);
+			button[i].setOnClickListener(new Button.OnClickListener() 
+			{
+				//On click, send location back
+				public void onClick(View v)
+				{
+					
+				}
+				
+			});
+			LinearLayout ll = (LinearLayout)findViewById(R.id.buttonlayout);
+			LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+			ll.addView(button[i], lp);
+		}
+
+	}
+
     private void renderMap(List<Result> aggregateResults) {
 		// TODO Auto-generated method stub
-		
+
 	}
 	// based on the address list, find which addresses are already in the cache and which ones we need to request. Return the list of those we need to request.
     private List<MapSegment> initSegmentList(Address chosenAddr) {
@@ -114,9 +139,9 @@ public class MainActivity extends Activity {
     	CameraPosition camPosn = m_gMap.getCameraPosition();
     	LatLng coords = camPosn.target;
     	float zoomLvl = camPosn.zoom;
-    	
+
     	String img_id = Double.toString(coords.latitude) + "-" + Double.toString(coords.longitude) + "-" + Float.toString(zoomLvl);
-    	
+
     	Scraper.scrapeScreen(findViewById(R.id.map_fragment),img_id);
     }
 }
