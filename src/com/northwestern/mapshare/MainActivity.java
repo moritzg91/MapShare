@@ -73,25 +73,23 @@ public class MainActivity extends Activity {
     	try { //getFromLocationName throws exceptions, so we need the try/catch block
     		List<Address> addrList = m_geocoder.getFromLocationName(query, 10);
     		
+    		Address chosenAddr = letUserPickAddress();
+    		
 			switch (m_NETWORKING_MODE) {
 	    	case TRADITIONAL_3G_OR_WIFI:
-	    		for (int idx = 0; idx < addrList.size(); idx++) {
-	    			m_gMap.addMarker(new MarkerOptions()
-	            		.position(new LatLng(addrList.get(idx).getLatitude(), addrList.get(idx).getLongitude()))
-	            		.title(Integer.toString(idx)));
-	    		}
+	    		m_gMap.addMarker(new MarkerOptions()
+	            	.position(new LatLng(chosenAddr.getLatitude(), chosenAddr.getLongitude()))
+	            		.title(chosenAddr.toString()));
 	    		// scroll camera to first marker
-	    		 m_gMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(addrList.get(0).getLatitude(),addrList.get(0).getLongitude())));
+	    		 m_gMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(chosenAddr.getLatitude(),chosenAddr.getLongitude())));
 	    		 this.cacheView();
 	    		 return;
 	    	case PSEUDOCAST_AND_3G:
-	    		List<MapSegment> segmentsToRequest = this.initSegmentList(addrList);
-	    		List<Result> aggregateResults = new ArrayList<Result>();
-	    		for (int idx = 0; idx < addrList.size(); idx++) {
-	    			List<Result> results = m_broadcastMngr.requestSegments(segmentsToRequest.get(idx));
-	    			aggregateResults.addAll(results);
-	    		}
-	    		this.renderMap(aggregateResults);
+	    		List<MapSegment> segmentsToRequest = this.initSegmentList(chosenAddr);
+	    		List<Result> results = m_broadcastMngr.requestSegments(segmentsToRequest);
+	    			
+	    		this.renderMap(results);
+	    		
 	    		return;
 	    	case PSEUDOCAST_CACHE_ONLY:
 	    		break;
@@ -107,7 +105,7 @@ public class MainActivity extends Activity {
 		
 	}
 	// based on the address list, find which addresses are already in the cache and which ones we need to request. Return the list of those we need to request.
-    private List<MapSegment> initSegmentList(List<Address> addrList) {
+    private List<MapSegment> initSegmentList(Address chosenAddr) {
 		// TODO Auto-generated method stub
 		return null;
 	}
