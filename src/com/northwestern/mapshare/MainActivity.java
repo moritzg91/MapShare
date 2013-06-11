@@ -2,6 +2,8 @@ package com.northwestern.mapshare;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import android.app.Activity;
@@ -12,6 +14,7 @@ import android.os.Bundle;
 import android.app.FragmentManager;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.graphics.Bitmap;
 
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -46,6 +49,7 @@ public class MainActivity extends Activity {
 	private Button m_searchSubmitBtn;
 	private Geocoder m_geocoder;
 	private BroadcastManager m_broadcastMngr;
+	private View m_mapRenderView;
 
 	private NetworkingMode m_NETWORKING_MODE;
 	
@@ -80,6 +84,8 @@ public class MainActivity extends Activity {
                 performSearch(m_searchBar.getText().toString());
             }
         });
+        
+        m_mapRenderView = null;
     }
  // perform the search
     protected void performSearch(String query) {
@@ -88,7 +94,7 @@ public class MainActivity extends Activity {
     		List<Address> addrList = m_geocoder.getFromLocationName(query, 10);
     		letUserPickAddress(addrList);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
+			// Auto-generated catch block
 			e.printStackTrace();
 		}
     }
@@ -96,7 +102,6 @@ public class MainActivity extends Activity {
     //whichever choice they want
 	protected void letUserPickAddress(List<Address> addrList)
 	{
-		LinearLayout buttonLayout = (LinearLayout)findViewById(R.id.btnlayout);
 		ListView modeList = new ListView(m_context);
 		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(m_context);
 		
@@ -121,9 +126,13 @@ public class MainActivity extends Activity {
 	private void handleAddressSelected(Address chosenAddr) {
 		switch (m_NETWORKING_MODE) {
     	case TRADITIONAL_3G_OR_WIFI:
+    		if (m_mapRenderView != null) {
+    			m_mapRenderView = null;
+    			// TODO: do we need to unload the view somehow?
+    		}
     		m_gMap.addMarker(new MarkerOptions()
             	.position(new LatLng(chosenAddr.getLatitude(), chosenAddr.getLongitude()))
-            		.title(chosenAddr.toString()));
+            	.title(chosenAddr.toString()));
     		// scroll camera to first marker
     		 m_gMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(chosenAddr.getLatitude(),chosenAddr.getLongitude())));
     		 this.cacheView();
@@ -141,7 +150,17 @@ public class MainActivity extends Activity {
 	}
 	
     private void renderMap(List<Result> aggregateResults) {
-		// TODO Auto-generated method stub
+    	// sort aggregate results for merging
+    	Collections.sort(aggregateResults, new ResultComparator());
+    	List<Bitmap> map_bmps = new ArrayList<Bitmap>();
+    	for (Result res : aggregateResults) {
+    		map_bmps.add(res.map_image);
+    	}
+    	int span = (int) Math.sqrt(aggregateResults.size());
+    	Bitmap joinedBmp = Helpers.combineBitmaps(map_bmps, span, span);
+    	LinearLayout root = (LinearLayout)findViewById(R.id.rootLayout);
+    	
+    	// TODO: set the content of the rootView to joinedBmp
 
 	}
 	// based on the address list, find which addresses are already in the cache and which ones we need to request. Return the list of those we need to request.
@@ -181,5 +200,23 @@ public class MainActivity extends Activity {
             handleAddressSelected(m_addrs.get(position));
         }
     }
+    
+    public class ResultComparator implements Comparator<Result> {
+	    @Override
+	    public int compare(Result r1, Result r2) {
+	        if (r1.topLeft.longitude > r2.topLeft.longitude) {
+	        	return -1;
+	        } else if (r1.topLeft.longitude == r2.topLeft.longitude) {
+	        	if (r1.topLeft.latitude < r2.topLeft.latitude) {
+		        	return -1;
+		        } else if (r1.topLeft.latitude > r2.topLeft.latitude) {
+		        	return 1;
+		        } else {
+		        	return 0;
+		        }
+	        }
+	        return 1;
+	    }
+	}
 }
 
