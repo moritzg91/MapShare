@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Dialog;
+import android.app.DialogFragment;
 import android.os.Bundle;
 import android.app.FragmentManager;
 import android.content.Context;
@@ -12,10 +15,14 @@ import android.content.DialogInterface;
 
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.Button;
 import android.widget.FrameLayout.LayoutParams;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 
 import android.location.*;
 
@@ -41,6 +48,8 @@ public class MainActivity extends Activity {
 	private BroadcastManager m_broadcastMngr;
 
 	private NetworkingMode m_NETWORKING_MODE;
+	
+	private final Context m_context = this;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,19 +95,27 @@ public class MainActivity extends Activity {
     //we display every address, as a button maybe? Then user just hits
     //whichever choice they want
 	protected void letUserPickAddress(List<Address> addrList)
-	{	
+	{
+		LinearLayout buttonLayout = (LinearLayout)findViewById(R.id.btnlayout);
+		ListView modeList = new ListView(m_context);
+		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(m_context);
+		
 		int list_len = addrList.size();
-		Button[] buttons = new Button[list_len];
-		for (int i = 0; i < list_len; i++)
-		{
-			buttons[i] = new CustomButton(this,addrList.get(i));
-			buttons[i].setText(addrList.get(i).getAddressLine(0));
-			buttons[i].setOnClickListener(new CustomOnClickListener(addrList.get(i)));
-			LinearLayout ll = (LinearLayout)findViewById(R.id.mainlayout);
-			LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-			ll.addView(buttons[i], lp);
+		String[] addresses = new String[list_len];
+		
+		for (int i = 0; i < list_len; i++) { 
+			addresses[i] = addrList.get(i).getAddressLine(0) + "\n" + addrList.get(i).getAddressLine(1) + "\n" + addrList.get(i).getAddressLine(2); 
 		}
-
+		
+		ArrayAdapter<String> modeAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, android.R.id.text1, addresses);
+		modeList.setAdapter(modeAdapter);
+		
+		alertDialogBuilder.setView(modeList);
+		
+		AlertDialog alertDialog = alertDialogBuilder.create();
+		modeList.setOnItemClickListener(new CustomOnItemClickListener(addrList,alertDialog));
+		// show dialog
+		alertDialog.show();
 	}
 
 	private void handleAddressSelected(Address chosenAddr) {
@@ -152,20 +169,17 @@ public class MainActivity extends Activity {
 		}
     }
     
-    public class CustomOnClickListener implements OnClickListener
-    {
-
-      Address myAddr;
-      public CustomOnClickListener(Address addr) {
-           this.myAddr = addr;
-      }
-
-      @Override
-      public void onClick(View v)
-      {
-          handleAddressSelected(this.myAddr);
-      }
-
-   }
+    private class CustomOnItemClickListener implements OnItemClickListener {
+    	List<Address> m_addrs;
+    	AlertDialog m_parentDialog;
+    	public CustomOnItemClickListener(List<Address> addrs, AlertDialog parentDialog) {
+    		m_addrs = addrs;
+    		m_parentDialog = parentDialog;
+    	}
+        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+        	m_parentDialog.dismiss();
+            handleAddressSelected(m_addrs.get(position));
+        }
+    }
 }
 
