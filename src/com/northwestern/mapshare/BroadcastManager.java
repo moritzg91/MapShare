@@ -12,6 +12,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.net.InetSocketAddress;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CountDownLatch;
@@ -68,6 +69,22 @@ public class BroadcastManager extends Thread{
 		latch.countDown();
 	}
 	
+	public void listen_for_broadcasts(){
+		try{
+			DatagramSocket mSocket = new DatagramSocket(null);
+			mSocket.setReuseAddress(true);
+			mSocket.setBroadcast(true);
+			mSocket.bind(new InetSocketAddress(REQUEST_PORT));
+				//socket.setSoTimeout(TIMEOUT_MS);
+				
+			//sendMapShareRequest(socket);
+			listenForBroadcasts(mSocket);
+		} catch (IOException e) {
+			Log.e(TAG, "listening for broadcasts", e);
+		}
+		
+	}
+	
 	//Send a broadcast UDP packet with a request for mapshare services to
 	//announce themselves
 	private void sendMapShareRequest(DatagramSocket socket) throws IOException {
@@ -114,6 +131,25 @@ public class BroadcastManager extends Thread{
 				result.ip_addr = packet.getAddress();
 				Result_List.add(result);
 				Log.d("RESULT LIST", "ADDED TO RESULT LIST");
+			}
+		} catch (SocketTimeoutException e) {
+			Log.d(TAG, "Receive timed out");
+		}
+	}
+	
+	private void listenForBroadcasts(DatagramSocket socket) throws IOException {
+		byte[] buf = new byte[1024];
+		try {
+			while (true) {
+				DatagramPacket packet = new DatagramPacket(buf, buf.length);
+				socket.receive(packet);
+				String s = new String(packet.getData(), 0, packet.getLength());
+				Log.d(TAG, "Received request " + s);
+				Log.d(TAG, "IP is " + packet.getAddress().toString());
+				//Phone_Result result = new Phone_Result();
+				//result.ip_addr = packet.getAddress();
+				//Result_List.add(result);
+				Log.d("PEER REQUEST", "Peer requesting information");
 			}
 		} catch (SocketTimeoutException e) {
 			Log.d(TAG, "Receive timed out");

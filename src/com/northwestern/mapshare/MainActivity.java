@@ -87,6 +87,7 @@ public class MainActivity extends Activity {
 		}
 
         Log.d("LENGTH OF RESULTS", "length is: " + m_broadcastMngr.Result_List.size());
+        //m_broadcastMngr.listen_for_broadcasts();
         // initialize the references to UI elements
         FragmentManager fm = getFragmentManager();
         m_mapFragment = (MapFragment)fm.findFragmentById(R.id.map_fragment);
