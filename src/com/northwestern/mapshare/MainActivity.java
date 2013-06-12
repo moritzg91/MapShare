@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -72,8 +73,18 @@ public class MainActivity extends Activity {
         Log.d("WifiManager", "WiFi Status: " + info.toString());
         
         m_broadcastMngr = new BroadcastManager(m_wifiMngr);//.start();
+        
         m_broadcastMngr.start();
+        //Use latch to wait so that we don't start doing map segment requests
+        //before we have list of phones. waiting does this.
+        try {
+			m_broadcastMngr.waiting();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
+        Log.d("LENGTH OF RESULTS", "length is: " + m_broadcastMngr.Result_List.size());
         // initialize the references to UI elements
         FragmentManager fm = getFragmentManager();
         m_mapFragment = (MapFragment)fm.findFragmentById(R.id.map_fragment);
