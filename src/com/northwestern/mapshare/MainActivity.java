@@ -37,6 +37,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.northwestern.mapshare.BroadcastManager.Phone_Result;
 import com.northwestern.mapshare.BroadcastManager.Request;
 import com.northwestern.mapshare.BroadcastManager.Result;
+import com.northwestern.mapshare.BroadcastManager.SerializableTypes;
 
 public class MainActivity extends Activity {
 	
@@ -126,15 +127,9 @@ public class MainActivity extends Activity {
     }
     private Map<Integer,Phone_Result> ratePeers(List<Phone_Result> result_List) {
     	Map<Integer, Phone_Result> ratedPeers = new HashMap<Integer, Phone_Result>();
-    	/*for (Phone_Result node : result_List) {
-    		/*
-    		 * gsm_signal_strength;
-		int gsm_bit_error_rate;
-		int secondsAlive;
-		int numCachedSegments;
-    		 * */
-    	/*	ratedPeers.put((int) (node.numCachedSegments + Math.log(node.secondsAlive) + node.gsm_signal_strength/node.gsm_bit_error_rate), node);
-    	}*/
+    	for (Phone_Result node : result_List) {
+    		ratedPeers.put((int) (node.numCachedSegments + Math.log(node.secondsAlive) + node.gsm_signal_strength/node.gsm_bit_error_rate), node);
+    	}
 		// TODO Auto-generated method stub
 		return ratedPeers;
 	}
@@ -195,12 +190,12 @@ public class MainActivity extends Activity {
 
          	String img_id = android.util.Base64.encodeToString((Double.toString(coords.latitude) + "-" + Double.toString(coords.longitude) + "-" + Float.toString(zoomLvl)).getBytes(),android.util.Base64.DEFAULT);
     		 
-    		 m_cacheViewThread = new Thread(new CacheView(img_id,coords,EARTH_LAT_CIRCUMFERENCE[(int)coords.latitude]*Math.pow(zoomLvl,2),EARTH_CIRCUMFERENCE/Math.pow(zoomLvl,2)));
+    		 m_cacheViewThread = new Thread(new CacheView(img_id,coords,EARTH_LAT_CIRCUMFERENCE[(int)coords.latitude]/Math.pow(zoomLvl,2),EARTH_CIRCUMFERENCE/Math.pow(zoomLvl,2)));
              m_cacheViewThread.start();
     		 
     		 return;
     	case PSEUDOCAST_AND_3G:
-    		List<Request> segmentsToRequest = this.initSegmentList(chosenAddr);
+    		List<Request> segmentsToRequest = this.initSegmentList(chosenAddr,zoomLvl);
     		List<Result> results = m_broadcastMngr.requestSegments(segmentsToRequest);
 
     		this.renderMap(results);
@@ -225,9 +220,21 @@ public class MainActivity extends Activity {
 
 	}
 	// based on the address list, find which addresses are already in the cache and which ones we need to request. Return the list of those we need to request.
-    private List<Request> initSegmentList(Address chosenAddr) {
+    private List<Request> initSegmentList(Address chosenAddr, float zoomlvl) {
+    	List<Request> segmentList = new LinkedList<Request>();
+    	// calculate the tiles we need
+    	LatLng center = new LatLng(chosenAddr.getLatitude(),chosenAddr.getLongitude());
+    	// top left
+    	segmentList.add( m_broadcastMngr.new Request("TileRequest",SerializableTypes.TILE_REQUEST_T,new LatLng(center.latitude - EARTH_LAT_CIRCUMFERENCE[(int)center.latitude]/Math.pow(zoomlvl,2),center.longitude + EARTH_CIRCUMFERENCE/Math.pow(zoomlvl,2))) );
+    	// top right
+    	segmentList.add( m_broadcastMngr.new Request("TileRequest",SerializableTypes.TILE_REQUEST_T,new LatLng(center.latitude,center.longitude + EARTH_CIRCUMFERENCE/Math.pow(zoomlvl,2))) );
+    	// bottom left
+    	segmentList.add( m_broadcastMngr.new Request("TileRequest",SerializableTypes.TILE_REQUEST_T,new LatLng(center.latitude - EARTH_LAT_CIRCUMFERENCE[(int)center.latitude]/Math.pow(zoomlvl,2),center.longitude)) );
+    	// bottom right
+    	segmentList.add( m_broadcastMngr.new Request("TileRequest",SerializableTypes.TILE_REQUEST_T,center) );
+    	
 		// TODO Auto-generated method stub
-		return null;
+		return segmentList;
 	}
     
     protected class CustomButton extends Button {

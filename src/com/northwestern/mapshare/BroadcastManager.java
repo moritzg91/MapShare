@@ -29,7 +29,8 @@ import com.google.android.gms.maps.model.LatLng;
 public class BroadcastManager extends Thread{
 	
 	public enum SerializableTypes {
-		REQUEST_T;
+		REQUEST_T, 
+		TILE_REQUEST_T;
 	}
 	
 	public List<Result> requestSegments(List<Request> requests) {
@@ -209,9 +210,14 @@ public class BroadcastManager extends Thread{
 	public class Request {
 		public String reqTypeStr;
 		public SerializableTypes typeEnum;
+		public LatLng requestedTileTopLeft;
 		public Request(String typeStr, SerializableTypes type) {
 			reqTypeStr = typeStr;
 			typeEnum = type;
+		}
+		public Request(String typeStr, SerializableTypes type, LatLng _requestedTileTopLeft) {
+			this(typeStr,type);
+			requestedTileTopLeft = _requestedTileTopLeft;
 		}
 		public byte[] toByteArray() {
 			byte[] byteArr = new byte[2 + reqTypeStr.getBytes().length];
@@ -234,6 +240,13 @@ public class BroadcastManager extends Thread{
 		System.arraycopy(data, 2, strbuf, 0, (int)data[1]);
 		//strbuf[(int)data[1] - 1] = '\0';
 		String s = new String(strbuf);
+		switch (t) {
+			case REQUEST_T:
+				return new Request(s,t);
+			case TILE_REQUEST_T:
+			// TODO: unserialize the tile latlng here
+				return null;
+		}
 		return new Request(s,t);
 	}
 	
