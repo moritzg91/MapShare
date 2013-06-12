@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -32,8 +34,9 @@ import com.google.android.gms.maps.*;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.northwestern.mapshare.BroadcastManager.Phone_Result;
+import com.northwestern.mapshare.BroadcastManager.Request;
 import com.northwestern.mapshare.BroadcastManager.Result;
-import com.northwestern.mapshare.Scheduler.MapSegment;
 
 public class MainActivity extends Activity {
 	
@@ -60,6 +63,8 @@ public class MainActivity extends Activity {
 	private final Context m_context = this;
 	private Thread m_cacheViewThread;
 	private List<Result> m_cachedTiles;
+	
+	private Map<Integer,Phone_Result> m_peers;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,6 +92,7 @@ public class MainActivity extends Activity {
 		}
 
         Log.d("LENGTH OF RESULTS", "length is: " + m_broadcastMngr.Result_List.size());
+        m_peers = ratePeers(m_broadcastMngr.Result_List);
         //m_broadcastMngr.listen_for_broadcasts();
         // initialize the references to UI elements
         FragmentManager fm = getFragmentManager();
@@ -118,7 +124,21 @@ public class MainActivity extends Activity {
         	EARTH_LAT_CIRCUMFERENCE[i+90] = circumference;
         }
     }
- // perform the search
+    private Map<Integer,Phone_Result> ratePeers(List<Phone_Result> result_List) {
+    	Map<Integer, Phone_Result> ratedPeers = new HashMap<Integer, Phone_Result>();
+    	/*for (Phone_Result node : result_List) {
+    		/*
+    		 * gsm_signal_strength;
+		int gsm_bit_error_rate;
+		int secondsAlive;
+		int numCachedSegments;
+    		 * */
+    	/*	ratedPeers.put((int) (node.numCachedSegments + Math.log(node.secondsAlive) + node.gsm_signal_strength/node.gsm_bit_error_rate), node);
+    	}*/
+		// TODO Auto-generated method stub
+		return ratedPeers;
+	}
+	// perform the search
     protected void performSearch(String query) {
     	// get location from search string
     	try { //getFromLocationName throws exceptions, so we need the try/catch block
@@ -180,7 +200,7 @@ public class MainActivity extends Activity {
     		 
     		 return;
     	case PSEUDOCAST_AND_3G:
-    		List<MapSegment> segmentsToRequest = this.initSegmentList(chosenAddr);
+    		List<Request> segmentsToRequest = this.initSegmentList(chosenAddr);
     		List<Result> results = m_broadcastMngr.requestSegments(segmentsToRequest);
 
     		this.renderMap(results);
@@ -205,7 +225,7 @@ public class MainActivity extends Activity {
 
 	}
 	// based on the address list, find which addresses are already in the cache and which ones we need to request. Return the list of those we need to request.
-    private List<MapSegment> initSegmentList(Address chosenAddr) {
+    private List<Request> initSegmentList(Address chosenAddr) {
 		// TODO Auto-generated method stub
 		return null;
 	}

@@ -1,17 +1,19 @@
 package com.northwestern.mapshare;
 
 import java.util.ArrayList;
-
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 import java.net.InetSocketAddress;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,11 +25,14 @@ import android.util.Log;
 import android.graphics.Bitmap;
 
 import com.google.android.gms.maps.model.LatLng;
-import com.northwestern.mapshare.BroadcastManager.Node;
-import com.northwestern.mapshare.Scheduler.MapSegment;
 
 public class BroadcastManager extends Thread{
-	public List<Result> requestSegments(List<MapSegment> segments) {
+	
+	public enum SerializableTypes {
+		REQUEST_T;
+	}
+	
+	public List<Result> requestSegments(List<Request> requests) {
 		return null;
 	}
 	private static final String TAG = "BroadcastRequest";
@@ -58,7 +63,7 @@ public class BroadcastManager extends Thread{
 			socket.setBroadcast(true);
 			socket.setSoTimeout(TIMEOUT_MS);
 			
-			sendMapShareRequest(socket);
+			sendMapShareRequest(socket,new Request("GetPeersRequest",SerializableTypes.REQUEST_T));
 			listenForResponses(socket);
 		} catch (IOException e) {
 			Log.e(TAG, "Could not send mapshare request", e);
@@ -87,13 +92,12 @@ public class BroadcastManager extends Thread{
 	
 	//Send a broadcast UDP packet with a request for mapshare services to
 	//announce themselves
-	private void sendMapShareRequest(DatagramSocket socket) throws IOException {
-		String data = String.format(
-				"<bdp1 cmd=\"mapshare\" application=\"map_share\" challenge=\"%s\" signature=\"%s\"/>",
-				mChallenge, getSignature(mChallenge));
-		Log.d(TAG, "Sending data " + data);
+	private void sendMapShareRequest(DatagramSocket socket, Request req) throws IOException {
+
+		byte[] reqBytes = req.toByteArray();
+		Log.d(TAG, "Sending data " + req.toString() + "\0");
 		
-		DatagramPacket packet = new DatagramPacket(data.getBytes(), data.length(),
+		DatagramPacket packet = new DatagramPacket(reqBytes, reqBytes.length,
 				getBroadcastAddress(), REQUEST_PORT);
 		socket.send(packet);
 	}
@@ -124,8 +128,10 @@ public class BroadcastManager extends Thread{
 			while (true) {
 				DatagramPacket packet = new DatagramPacket(buf, buf.length);
 				socket.receive(packet);
-				String s = new String(packet.getData(), 0, packet.getLength());
-				Log.d(TAG, "Received response " + s);
+				
+				Request o = requestFromByteArray(packet.getData());
+				
+				Log.d(TAG, "Received response " + o.toString());
 				Log.d(TAG, "IP is " + packet.getAddress().toString());
 				Phone_Result result = new Phone_Result();
 				result.ip_addr = packet.getAddress();
@@ -201,21 +207,41 @@ public class BroadcastManager extends Thread{
 		}
 	}
 	public class Request {
+		public String reqTypeStr;
+		public SerializableTypes typeEnum;
+		public Request(String typeStr, SerializableTypes type) {
+			reqTypeStr = typeStr;
+			typeEnum = type;
+		}
+		public byte[] toByteArray() {
+			byte[] byteArr = new byte[2 + reqTypeStr.getBytes().length];
+			byteArr[0] = (byte)typeEnum.ordinal();
+			byteArr[1] = (byte)reqTypeStr.getBytes().length;
+			System.arraycopy(reqTypeStr.getBytes(), 0, byteArr, 2, reqTypeStr.getBytes().length);
+			// TODO Auto-generated method stub
+			return byteArr;
+		}
+		public String toString() {
+			return "Request(" + typeEnum + "): " + reqTypeStr;
+		}
+	}
+	
+	public Request requestFromByteArray(byte[] data) {
+		// TODO Auto-generated method stub
+		SerializableTypes t = SerializableTypes.values()[(int)data[0]];
+		byte[] strbuf = new byte[(int)data[1]];
 		
+		System.arraycopy(data, 2, strbuf, 0, (int)data[1]);
+		//strbuf[(int)data[1] - 1] = '\0';
+		String s = new String(strbuf);
+		return new Request(s,t);
 	}
 	
 	public class Phone_Result {
 		public InetAddress ip_addr;
-		//int gsm_signal_strength;
-		//int gsm_bit_error_rate;
-	}
-	
-	public class Node {
-
-		public void requestSegment(MapSegment mapSegment) {
-			// TODO Auto-generated method stub
-			
-		}
-		
+		int gsm_signal_strength;
+		int gsm_bit_error_rate;
+		int secondsAlive;
+		int numCachedSegments;
 	}
 }
