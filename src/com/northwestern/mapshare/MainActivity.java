@@ -19,6 +19,7 @@ import android.graphics.Bitmap;
 
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.inputmethod.InputMethodManager;
 import android.util.Log;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -58,6 +59,7 @@ public class MainActivity extends Activity {
 	private NetworkingMode m_NETWORKING_MODE;
 	
 	private final Context m_context = this;
+	private Thread m_cacheViewThread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -143,7 +145,8 @@ public class MainActivity extends Activity {
 		alertDialog.show();
 	}
 
-	private void handleAddressSelected(Address chosenAddr) {
+	private void handleAddressSelected(AlertDialog dialog, Address chosenAddr) {
+		
 		switch (m_NETWORKING_MODE) {
     	case TRADITIONAL_3G_OR_WIFI:
     		if (m_mapRenderView != null) {
@@ -155,7 +158,17 @@ public class MainActivity extends Activity {
             	.title(chosenAddr.toString()));
     		// scroll camera to first marker
     		 m_gMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(chosenAddr.getLatitude(),chosenAddr.getLongitude())));
-    		 this.cacheView();
+
+
+         	CameraPosition camPosn = m_gMap.getCameraPosition();
+         	LatLng coords = camPosn.target;
+         	float zoomLvl = camPosn.zoom;
+
+         	String img_id = android.util.Base64.encodeToString((Double.toString(coords.latitude) + "-" + Double.toString(coords.longitude) + "-" + Float.toString(zoomLvl)).getBytes(),android.util.Base64.DEFAULT);
+    		 
+    		 m_cacheViewThread = new Thread(new CacheView(img_id));
+             m_cacheViewThread.start();
+    		 
     		 return;
     	case PSEUDOCAST_AND_3G:
     		List<MapSegment> segmentsToRequest = this.initSegmentList(chosenAddr);
@@ -188,16 +201,6 @@ public class MainActivity extends Activity {
 		// TODO Auto-generated method stub
 		return null;
 	}
-	// cache the currently visible view
-    protected void cacheView() {
-    	CameraPosition camPosn = m_gMap.getCameraPosition();
-    	LatLng coords = camPosn.target;
-    	float zoomLvl = camPosn.zoom;
-
-    	String img_id = Double.toString(coords.latitude) + "-" + Double.toString(coords.longitude) + "-" + Float.toString(zoomLvl);
-
-    	Scraper.scrapeScreen(findViewById(R.id.map_fragment),img_id);
-    }
     
     protected class CustomButton extends Button {
     	public Address myAddress;
@@ -216,8 +219,14 @@ public class MainActivity extends Activity {
     		m_parentDialog = parentDialog;
     	}
         public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+        	// hide keyboard
+        	InputMethodManager imm = (InputMethodManager)getSystemService(
+        		      Context.INPUT_METHOD_SERVICE);
+        		imm.hideSoftInputFromWindow(m_searchBar.getWindowToken(), 0);
+        	m_parentDialog.hide();
         	m_parentDialog.dismiss();
-            handleAddressSelected(m_addrs.get(position));
+        	// handle address selection
+            handleAddressSelected(m_parentDialog,m_addrs.get(position));
         }
     }
     
@@ -238,5 +247,29 @@ public class MainActivity extends Activity {
 	        return 1;
 	    }
 	}
+    
+    public class CacheView implements Runnable {
+    	String m_imgName;
+    	public CacheView(String img_name) {
+    		super();
+    		m_imgName = img_name;
+    	}
+    	@Override
+    	public void run() {
+    		System.out.println("running cacheview thread");
+    		cacheView();
+    	}
+    	public void cacheView() {
+    		System.out.println("starting cacheView()");
+        	try {
+    			Thread.sleep(1500);
+    			System.out.println("running cache view");
+    		} catch (InterruptedException e) {
+    			// TODO Auto-generated catch block
+    			e.printStackTrace();
+    		}
+        	Scraper.scrapeScreen(findViewById(R.id.map_fragment),m_imgName);
+        }
+    }
 }
 
