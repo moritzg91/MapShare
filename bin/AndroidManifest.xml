@@ -25,6 +25,7 @@
 	<uses-feature
         android:glEsVersion="0x00020000"
         android:required="true"/>
+	<uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
 	
     <application
         android:allowBackup="true"
@@ -42,7 +43,7 @@
         </activity>
         <meta-data
     		android:name="com.google.android.maps.v2.API_KEY"
-    		android:value="AIzaSyD5-G5il01OQsfxSeqZiKWbaA7jGw9rVBg"/>
+    		android:value="AIzaSyBxgvDXEYetcSEYOHGApaJmv5QvgBWiqTc"/>
     </application>
 
 </manifest>

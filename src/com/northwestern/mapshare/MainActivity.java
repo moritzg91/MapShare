@@ -18,6 +18,7 @@ import android.graphics.Bitmap;
 
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.util.Log;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
@@ -26,6 +27,7 @@ import android.widget.Button;
 import android.widget.FrameLayout.LayoutParams;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.net.wifi.*;
 
 import android.location.*;
 
@@ -49,6 +51,7 @@ public class MainActivity extends Activity {
 	private Button m_searchSubmitBtn;
 	private Geocoder m_geocoder;
 	private BroadcastManager m_broadcastMngr;
+	private WifiManager m_wifiMngr;
 	private View m_mapRenderView;
 
 	private NetworkingMode m_NETWORKING_MODE;
@@ -62,8 +65,14 @@ public class MainActivity extends Activity {
 
         // manually set the networking mode here.
         m_NETWORKING_MODE = NetworkingMode.TRADITIONAL_3G_OR_WIFI;
-
-        m_broadcastMngr = new BroadcastManager();
+        //setup wifi
+        m_wifiMngr = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        //get wifi status
+        WifiInfo info = m_wifiMngr.getConnectionInfo();
+        Log.d("WifiManager", "WiFi Status: " + info.toString());
+        
+        m_broadcastMngr = new BroadcastManager(m_wifiMngr);//.start();
+        m_broadcastMngr.start();
 
         // initialize the references to UI elements
         FragmentManager fm = getFragmentManager();
@@ -157,8 +166,8 @@ public class MainActivity extends Activity {
     		map_bmps.add(res.map_image);
     	}
     	int span = (int) Math.sqrt(aggregateResults.size());
-    	Bitmap joinedBmp = Helpers.combineBitmaps(map_bmps, span, span);
-    	LinearLayout root = (LinearLayout)findViewById(R.id.rootLayout);
+    	//Bitmap joinedBmp = Helpers.combineBitmaps(map_bmps, span, span);
+    	//LinearLayout root = (LinearLayout)findViewById(R.id.rootLayout);
     	
     	// TODO: set the content of the rootView to joinedBmp
 

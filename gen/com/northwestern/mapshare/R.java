@@ -182,8 +182,7 @@ containing a value of this type.
         public static final int ic_launcher=0x7f020018;
     }
     public static final class id {
-        public static final int action_settings=0x7f05000b;
-        public static final int btnlayout=0x7f05000a;
+        public static final int action_settings=0x7f05000a;
         public static final int hybrid=0x7f050004;
         public static final int mainlayout=0x7f050006;
         public static final int map_fragment=0x7f050009;
@@ -197,7 +196,6 @@ containing a value of this type.
     }
     public static final class layout {
         public static final int activity_main=0x7f030000;
-        public static final int btnlayout=0x7f030001;
     }
     public static final class menu {
         public static final int main=0x7f090000;
