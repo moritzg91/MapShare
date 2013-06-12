@@ -4,21 +4,18 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.Dialog;
-import android.app.DialogFragment;
 import android.os.Bundle;
 import android.app.FragmentManager;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.view.inputmethod.InputMethodManager;
 import android.util.Log;
 import android.widget.AdapterView;
@@ -26,8 +23,6 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.Button;
-import android.widget.FrameLayout.LayoutParams;
-import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.net.wifi.*;
 
@@ -41,6 +36,10 @@ import com.northwestern.mapshare.BroadcastManager.Result;
 import com.northwestern.mapshare.Scheduler.MapSegment;
 
 public class MainActivity extends Activity {
+	
+	protected final long EARTH_CIRCUMFERENCE = 40075000; //meters
+	protected long EARTH_LAT_CIRCUMFERENCE[];
+	
 	public enum NetworkingMode {
 		TRADITIONAL_3G_OR_WIFI, // just download over 3G
 		PSEUDOCAST_AND_3G, // actively schedule DL on other phones
@@ -60,6 +59,7 @@ public class MainActivity extends Activity {
 	
 	private final Context m_context = this;
 	private Thread m_cacheViewThread;
+	private List<Result> m_cachedTiles;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -108,6 +108,14 @@ public class MainActivity extends Activity {
         });
         
         m_mapRenderView = null;
+        m_cachedTiles = new LinkedList<Result>();
+        
+        EARTH_LAT_CIRCUMFERENCE = new long[180];
+        for (int i=0;i<90;i++) {
+        	long circumference = (long) (2*Math.PI*6378000*Math.cos(i));
+        	EARTH_LAT_CIRCUMFERENCE[i] = circumference;
+        	EARTH_LAT_CIRCUMFERENCE[i+90] = circumference;
+        }
     }
  // perform the search
     protected void performSearch(String query) {
@@ -166,7 +174,7 @@ public class MainActivity extends Activity {
 
          	String img_id = android.util.Base64.encodeToString((Double.toString(coords.latitude) + "-" + Double.toString(coords.longitude) + "-" + Float.toString(zoomLvl)).getBytes(),android.util.Base64.DEFAULT);
     		 
-    		 m_cacheViewThread = new Thread(new CacheView(img_id));
+    		 m_cacheViewThread = new Thread(new CacheView(img_id,coords,EARTH_LAT_CIRCUMFERENCE[(int)coords.latitude]*Math.pow(zoomLvl,2),EARTH_CIRCUMFERENCE/Math.pow(zoomLvl,2)));
              m_cacheViewThread.start();
     		 
     		 return;
@@ -190,9 +198,8 @@ public class MainActivity extends Activity {
     		map_bmps.add(res.map_image);
     	}
     	int span = (int) Math.sqrt(aggregateResults.size());
-    	//Bitmap joinedBmp = Helpers.combineBitmaps(map_bmps, span, span);
+    	Bitmap joinedBmp = Helpers.combineBitmaps(map_bmps, span, span);
     	//LinearLayout root = (LinearLayout)findViewById(R.id.rootLayout);
-    	
     	// TODO: set the content of the rootView to joinedBmp
 
 	}
@@ -250,9 +257,11 @@ public class MainActivity extends Activity {
     
     public class CacheView implements Runnable {
     	String m_imgName;
-    	public CacheView(String img_name) {
+    	Result m_cacheResult;
+    	public CacheView(String img_name, LatLng coords, double d, double e) {
     		super();
     		m_imgName = img_name;
+    		m_cacheResult = m_broadcastMngr.new Result(coords,d,e,null);
     	}
     	@Override
     	public void run() {
@@ -268,7 +277,16 @@ public class MainActivity extends Activity {
     			// TODO Auto-generated catch block
     			e.printStackTrace();
     		}
+        	/* take a screenshot of the screen and crop out the UI elements that are not part of the map
+        	 * (ugly hack, but hey, it's not my fault google maps is retarded) */
         	Scraper.scrapeScreen(findViewById(R.id.map_fragment),m_imgName);
+        	// crop the screenshot
+        	Bitmap bmp = BitmapFactory.decodeFile(m_imgName);
+        	// TODO: do cropping
+        	
+        	// save bitmap in cache
+        	m_cacheResult.map_image = bmp;
+        	m_cachedTiles.add(m_cacheResult);
         }
     }
 }

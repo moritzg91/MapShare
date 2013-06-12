@@ -152,10 +152,17 @@ public class BroadcastManager extends Thread{
 	}*/
 	
 	public class Result {
-		LatLng topLeft;
-		int width;
-		int height;
-		Bitmap map_image;
+		public LatLng topLeft;
+		public double width;
+		public double height;
+		public Bitmap map_image;
+		
+		public Result(LatLng latlng, double w, double h, Bitmap bmp) {
+			width = w;
+			height = h;
+			topLeft = latlng;
+			map_image = bmp;
+		}
 	}
 	public class Request {
 		
