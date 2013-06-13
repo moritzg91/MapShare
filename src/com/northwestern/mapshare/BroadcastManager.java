@@ -19,6 +19,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CountDownLatch;
 
+import android.os.Handler;
+import android.os.Process;
+import android.os.Looper;
 import android.telephony.SignalStrength;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
@@ -28,6 +31,7 @@ import android.util.Log;
 import android.content.Context;
 import android.graphics.Bitmap;
 
+import com.google.android.gms.internal.d;
 import com.google.android.gms.maps.model.LatLng;
 
 public class BroadcastManager extends Thread{
@@ -46,10 +50,14 @@ public class BroadcastManager extends Thread{
 	private static final int TIMEOUT_MS = 500;
 	private boolean keep_running = true;
 	private Context context;
+	public Handler mHandler;// = new Handler(Looper.getMainLooper());
+	myPhoneStateListener myListener;
+	public int tID = 0;
 	
 	private static final String mChallenge = "something";
 	private WifiManager mWifi;
-	final CountDownLatch latch = new CountDownLatch(1);
+	final CountDownLatch latch_one = new CountDownLatch(1);
+	final CountDownLatch phone_state_latch = new CountDownLatch(1);
 	public List<Phone_Result> Result_List = new ArrayList<Phone_Result>();
 	
 	interface MapShareReceiver {
@@ -64,9 +72,11 @@ public class BroadcastManager extends Thread{
 		mWifi = wifi;
 		context = c;
 	}
-	public void waiting() throws InterruptedException{
-		latch.await();
+	public void waiting_one() throws InterruptedException{
+		latch_one.await();
 	}
+
+
 	//Set up socket and 
 	public void run() {
 		try{
@@ -75,6 +85,12 @@ public class BroadcastManager extends Thread{
 			socket.setSoTimeout(TIMEOUT_MS);
 			
 			sendMapShareRequest(socket,new Request("GetPeersRequest",SerializableTypes.REQUEST_T));
+			
+			//I'm thinking that we just leave this running, so turn off the setSoTimeout.
+			//We won't need to do that until we test w/ both phones so I'm going to leave it in for now
+			//but it seems like our best bet. Therefore, we may want to set up another class thread
+			//for issuing later responses, but I don't think it's necessary. We will still have to call
+			//latch.countDown(), just after listenForResponses
 			listenForResponses(socket);
 		} catch (IOException e) {
 			Log.e(TAG, "Could not send mapshare request", e);
@@ -82,24 +98,10 @@ public class BroadcastManager extends Thread{
 		for (int i = 0; i <Result_List.size();i++) {
 			Log.d("RESULTS", "Result IP: " + Result_List.get(i));
 		}
-		latch.countDown();
+		latch_one.countDown();
 	}
 	
-	public void listen_for_broadcasts(){
-		try{
-			DatagramSocket mSocket = new DatagramSocket(null);
-			mSocket.setReuseAddress(true);
-			mSocket.setBroadcast(true);
-			mSocket.bind(new InetSocketAddress(REQUEST_PORT));
-				//socket.setSoTimeout(TIMEOUT_MS);
-				
-			//sendMapShareRequest(socket);
-			listenForBroadcasts(mSocket);
-		} catch (IOException e) {
-			Log.e(TAG, "listening for broadcasts", e);
-		}
-		
-	}
+	
 	
 	//Send a broadcast UDP packet with a request for mapshare services to
 	//announce themselves
@@ -133,6 +135,10 @@ public class BroadcastManager extends Thread{
 	//@param socket
 	//   socket on which the announcement request was sent
 	//@throws IOException
+	/* IMPORTANT
+	 * Alright, so I think I just wrapped my head around how to do all this, 
+	 * so in theory this shouldn't take too long to implement. Using the request
+	 */
 	private void listenForResponses(DatagramSocket socket) throws IOException {
 		byte[] buf = new byte[1024];
 		try {
@@ -144,36 +150,24 @@ public class BroadcastManager extends Thread{
 				
 				Log.d(TAG, "Received response " + o.toString());
 				Log.d(TAG, "IP is " + packet.getAddress().toString());
-				Phone_Result result = new Phone_Result();
-				result.ip_addr = packet.getAddress();
-				result.gsm_bit_error_rate = 0;
-				result.gsm_signal_strength = 0;
-				Result_List.add(result);
-				Log.d("RESULT LIST", "ADDED TO RESULT LIST");
+				if (o.reqTypeStr.equals("GetPeersRequest")) {
+					//we have peer request. Start phone listener to get signal info
+					//then send packet with info back
+					Phone_Result result = fulfill_peer_request();
+					result.ip_addr = packet.getAddress();
+					Log.d("SIGNAL INFO", "Signal Strength: " + result.gsm_signal_strength);
+					Log.d("SIGNAL INFO", "Signal Bit Error Rate: " + result.gsm_bit_error_rate);
+					Result_List.add(result);
+					Log.d("RESULT LIST", "ADDED TO RESULT LIST");
+				}
+				
 			}
 		} catch (SocketTimeoutException e) {
 			Log.d(TAG, "Receive timed out");
 		}
 	}
 	
-	private void listenForBroadcasts(DatagramSocket socket) throws IOException {
-		byte[] buf = new byte[1024];
-		try {
-			while (true) {
-				DatagramPacket packet = new DatagramPacket(buf, buf.length);
-				socket.receive(packet);
-				String s = new String(packet.getData(), 0, packet.getLength());
-				Log.d(TAG, "Received request " + s);
-				Log.d(TAG, "IP is " + packet.getAddress().toString());
-				//Phone_Result result = new Phone_Result();
-				//result.ip_addr = packet.getAddress();
-				//Result_List.add(result);
-				Log.d("PEER REQUEST", "Peer requesting information");
-			}
-		} catch (SocketTimeoutException e) {
-			Log.d(TAG, "Receive timed out");
-		}
-	}
+	
 	
 	//Calculate signature we need to send with request. it's a string
 	// containing hex md5sum of the challenge and REMOTE_KEY
@@ -233,19 +227,39 @@ public class BroadcastManager extends Thread{
 	//This is really annoying, maybe you know more about accessing the context from Activity class,
 	//I'm only guessing that this will work as of now, but let's hope that the context I pass
 	//in the constructor is correct
-	public Phone_Result peer_request() {
+	public Phone_Result fulfill_peer_request() {
 		Phone_Result res = new Phone_Result();
-		//res.gsm_bit_error_rate = SignalStrength.getGsmBitErrorRate();
-		//res.gsm_signal_strength = getGsmSignalStrength();
-		//context = context.getApplicationContext();//getApplicationContext();
 		TelephonyManager tel;
-        myPhoneStateListener myListener;
-        myListener = new myPhoneStateListener();
+		
+		//Looper.prepare();
+		
+        //Due to some shit involving threads, something called a looper, and handlers,
+        //we have to wrap this call
+        mHandler.post(new Runnable() {
+        	public void run() {
+        		myListener = new myPhoneStateListener();
+        		Log.d("RUNNABLE DEBUG", "CREATED myListener");
+        		phone_state_latch.countDown();
+        		Log.d("RUNNABLE DEBUG", "Countdown done");
+        		tID = android.os.Process.getThreadPriority(Process.myTid());
+        	}
+        });
+        
+        //I have a feeling this is a concurrency necessity
+        try {
+        		if (tID != 0)
+        			Log.d("THREAD ID","tID is : " + tID);
+        	phone_state_latch.await();
+			
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
         tel = ( TelephonyManager )context.getSystemService(Context.TELEPHONY_SERVICE);
         while (myListener.signal_strength == 0) {
         	tel.listen(myListener ,PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
         }
-        tel.listen(myListener ,PhoneStateListener.LISTEN_NONE);
+        tel.listen(myListener, PhoneStateListener.LISTEN_NONE);
         res.gsm_signal_strength = myListener.signal_strength;
         res.gsm_bit_error_rate = myListener.signal_err_rate;
 		return res;
@@ -313,4 +327,42 @@ public class BroadcastManager extends Thread{
 		int secondsAlive;
 		int numCachedSegments;
 	}
+	/*
+	 * Functions that don't work / we don't need, but they might have useful code for later
+	public void listen_for_broadcasts(){
+		try{
+			DatagramSocket mSocket = new DatagramSocket(null);
+			mSocket.setReuseAddress(true);
+			mSocket.setBroadcast(true);
+			mSocket.bind(new InetSocketAddress(REQUEST_PORT));
+				//socket.setSoTimeout(TIMEOUT_MS);
+				
+			//sendMapShareRequest(socket);
+			listenForBroadcasts(mSocket);
+		} catch (IOException e) {
+			Log.e(TAG, "listening for broadcasts", e);
+		}
+	}	
+	
+	private void listenForBroadcasts(DatagramSocket socket) throws IOException {
+		byte[] buf = new byte[1024];
+		try {
+			while (true) {
+				DatagramPacket packet = new DatagramPacket(buf, buf.length);
+				socket.receive(packet);
+				String s = new String(packet.getData(), 0, packet.getLength());
+				Log.d(TAG, "Received request " + s);
+				Log.d(TAG, "IP is " + packet.getAddress().toString());
+				//Phone_Result result = new Phone_Result();
+				//result.ip_addr = packet.getAddress();
+				//Result_List.add(result);
+				Log.d("PEER REQUEST", "Peer requesting information");
+			}
+		} catch (SocketTimeoutException e) {
+			Log.d(TAG, "Receive timed out");
+		}
+	}
+		
+		*/
+	
 }
