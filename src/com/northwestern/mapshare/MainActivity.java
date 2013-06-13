@@ -76,13 +76,19 @@ public class MainActivity extends Activity {
         m_NETWORKING_MODE = NetworkingMode.TRADITIONAL_3G_OR_WIFI;
         //setup wifi
         m_wifiMngr = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        
+        //Not sure if this will work, but we need the current context to access signal strengths
+        //if all goes well, each phone's BroadcastManager will have the correct context
+        //and thus transmit the correct data back in the response to the request
+        Context c = (Context) this;
         //get wifi status
         WifiInfo info = m_wifiMngr.getConnectionInfo();
         Log.d("WifiManager", "WiFi Status: " + info.toString());
         
-        m_broadcastMngr = new BroadcastManager(m_wifiMngr);//.start();
-        
+        //Create Broadcast Manager and run thread
+        m_broadcastMngr = new BroadcastManager(m_wifiMngr,c);//.start();
         m_broadcastMngr.start();
+        
         //Use latch to wait so that we don't start doing map segment requests
         //before we have list of phones. waiting does this.
         try {
@@ -94,6 +100,7 @@ public class MainActivity extends Activity {
 
         Log.d("LENGTH OF RESULTS", "length is: " + m_broadcastMngr.Result_List.size());
         m_peers = ratePeers(m_broadcastMngr.Result_List);
+        Log.d("Rated Peers", "Size of map is " + m_peers.size());
         //m_broadcastMngr.listen_for_broadcasts();
         // initialize the references to UI elements
         FragmentManager fm = getFragmentManager();
@@ -128,7 +135,8 @@ public class MainActivity extends Activity {
     private Map<Integer,Phone_Result> ratePeers(List<Phone_Result> result_List) {
     	Map<Integer, Phone_Result> ratedPeers = new HashMap<Integer, Phone_Result>();
     	for (Phone_Result node : result_List) {
-    		ratedPeers.put((int) (node.numCachedSegments + Math.log(node.secondsAlive) + node.gsm_signal_strength/node.gsm_bit_error_rate), node);
+    		if (node.gsm_bit_error_rate != 0)
+    			ratedPeers.put((int) (node.numCachedSegments + Math.log(node.secondsAlive) + node.gsm_signal_strength/node.gsm_bit_error_rate), node);
     	}
 		// TODO Auto-generated method stub
 		return ratedPeers;
@@ -170,7 +178,8 @@ public class MainActivity extends Activity {
 	}
 
 	private void handleAddressSelected(AlertDialog dialog, Address chosenAddr) {
-		
+		float zoomLvl;
+		CameraPosition camPosn;
 		switch (m_NETWORKING_MODE) {
     	case TRADITIONAL_3G_OR_WIFI:
     		if (m_mapRenderView != null) {
@@ -184,9 +193,9 @@ public class MainActivity extends Activity {
     		 m_gMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(chosenAddr.getLatitude(),chosenAddr.getLongitude())));
 
 
-         	CameraPosition camPosn = m_gMap.getCameraPosition();
+         	camPosn = m_gMap.getCameraPosition();
          	LatLng coords = camPosn.target;
-         	float zoomLvl = camPosn.zoom;
+         	zoomLvl = camPosn.zoom;
 
          	String img_id = android.util.Base64.encodeToString((Double.toString(coords.latitude) + "-" + Double.toString(coords.longitude) + "-" + Float.toString(zoomLvl)).getBytes(),android.util.Base64.DEFAULT);
     		 
@@ -195,6 +204,9 @@ public class MainActivity extends Activity {
     		 
     		 return;
     	case PSEUDOCAST_AND_3G:
+    		camPosn = m_gMap.getCameraPosition();
+         	//LatLng coords = camPosn.target;
+         	zoomLvl = camPosn.zoom;
     		List<Request> segmentsToRequest = this.initSegmentList(chosenAddr,zoomLvl);
     		List<Result> results = m_broadcastMngr.requestSegments(segmentsToRequest);
 

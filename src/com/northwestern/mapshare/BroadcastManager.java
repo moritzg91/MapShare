@@ -19,9 +19,13 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CountDownLatch;
 
+import android.telephony.SignalStrength;
+import android.telephony.PhoneStateListener;
+import android.telephony.TelephonyManager;
 import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
 import android.util.Log;
+import android.content.Context;
 import android.graphics.Bitmap;
 
 import com.google.android.gms.maps.model.LatLng;
@@ -41,6 +45,7 @@ public class BroadcastManager extends Thread{
 	private static final int REQUEST_PORT = 2562;
 	private static final int TIMEOUT_MS = 500;
 	private boolean keep_running = true;
+	private Context context;
 	
 	private static final String mChallenge = "something";
 	private WifiManager mWifi;
@@ -53,6 +58,11 @@ public class BroadcastManager extends Thread{
 	
 	public BroadcastManager(WifiManager wifi) {
 		mWifi = wifi;
+	}
+	
+	public BroadcastManager(WifiManager wifi, Context c) {
+		mWifi = wifi;
+		context = c;
 	}
 	public void waiting() throws InterruptedException{
 		latch.await();
@@ -136,6 +146,8 @@ public class BroadcastManager extends Thread{
 				Log.d(TAG, "IP is " + packet.getAddress().toString());
 				Phone_Result result = new Phone_Result();
 				result.ip_addr = packet.getAddress();
+				result.gsm_bit_error_rate = 0;
+				result.gsm_signal_strength = 0;
 				Result_List.add(result);
 				Log.d("RESULT LIST", "ADDED TO RESULT LIST");
 			}
@@ -194,6 +206,50 @@ public class BroadcastManager extends Thread{
 		}
 	}*/
 	
+	
+	//getting signal strength is a bit of a pain,
+	//have to extend PhoneStateListener then use context and telephony manager
+	//to listen. Apparently there may be another way to do this, but the vast
+	//majority of people use this way: you can only get the signalstrength
+	//when it is changed. Not ideal by any means, but hopefully this happens
+	//fairly often on a lower level...
+	public class myPhoneStateListener extends PhoneStateListener {
+		
+		int signal_strength;
+		int signal_err_rate;
+		
+		public myPhoneStateListener(){
+			signal_strength = 0;
+		}
+		@Override
+	    public void onSignalStrengthsChanged(SignalStrength signalStrength) {
+	        super.onSignalStrengthsChanged(signalStrength);
+	        signal_strength = signalStrength.getGsmSignalStrength();
+	        signal_err_rate = signalStrength.getGsmBitErrorRate();
+		}
+	}
+	
+	//#Method for peer request
+	//This is really annoying, maybe you know more about accessing the context from Activity class,
+	//I'm only guessing that this will work as of now, but let's hope that the context I pass
+	//in the constructor is correct
+	public Phone_Result peer_request() {
+		Phone_Result res = new Phone_Result();
+		//res.gsm_bit_error_rate = SignalStrength.getGsmBitErrorRate();
+		//res.gsm_signal_strength = getGsmSignalStrength();
+		//context = context.getApplicationContext();//getApplicationContext();
+		TelephonyManager tel;
+        myPhoneStateListener myListener;
+        myListener = new myPhoneStateListener();
+        tel = ( TelephonyManager )context.getSystemService(Context.TELEPHONY_SERVICE);
+        while (myListener.signal_strength == 0) {
+        	tel.listen(myListener ,PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+        }
+        tel.listen(myListener ,PhoneStateListener.LISTEN_NONE);
+        res.gsm_signal_strength = myListener.signal_strength;
+        res.gsm_bit_error_rate = myListener.signal_err_rate;
+		return res;
+	}
 	public class Result {
 		public LatLng topLeft;
 		public double width;
