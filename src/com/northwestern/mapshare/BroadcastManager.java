@@ -198,7 +198,8 @@ public class BroadcastManager extends Thread{
 						
 						// parse request and initialize appropriate result struct
 						for (Result cached : m_parent.m_cachedTiles) {
-							if (cached.topLeft == o.requestedTileTopLeft) {
+							if (Math.abs(cached.topLeft.latitude - o.requestedTileTopLeft.latitude)*m_parent.EARTH_LAT_CIRCUMFERENCE[(int)cached.topLeft.latitude] <= m_parent.MATCHING_OFFSET_DELTA*cached.width &&
+								Math.abs(cached.topLeft.longitude - o.requestedTileTopLeft.longitude)*m_parent.EARTH_CIRCUMFERENCE <= m_parent.MATCHING_OFFSET_DELTA*cached.height) {
 								byte[] responseBytes = cached.toByteArray();
 								Log.d(TAG, "Sending data " + cached.toString() + "\0");
 								

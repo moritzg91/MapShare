@@ -67,6 +67,8 @@ public class MainActivity extends Activity {
 	public List<Result> m_cachedTiles;
 	
 	private Map<Integer,Phone_Result> m_peers;
+	
+	public final float MATCHING_OFFSET_DELTA = 0.1f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
