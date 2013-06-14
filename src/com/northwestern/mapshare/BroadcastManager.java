@@ -5,6 +5,8 @@ import java.util.List;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectInputStream;
@@ -13,6 +15,7 @@ import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.InetSocketAddress;
 import java.security.MessageDigest;
@@ -30,6 +33,7 @@ import android.net.wifi.WifiManager;
 import android.util.Log;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
 import com.google.android.gms.internal.d;
 import com.google.android.gms.maps.model.LatLng;
@@ -38,11 +42,32 @@ public class BroadcastManager extends Thread{
 	
 	public enum SerializableTypes {
 		REQUEST_T, 
-		TILE_REQUEST_T;
+		TILE_REQUEST_T,
+		TILE_RESULT_T;
 	}
 	
 	public List<Result> requestSegments(List<Request> requests) {
-		return null;
+		DatagramSocket socket;
+		try {
+			socket = new DatagramSocket(REQUEST_PORT);
+			socket.setBroadcast(true);
+			socket.setSoTimeout(TIMEOUT_MS);
+		for (Request req : requests) {
+			sendMapShareRequest(socket,req);
+		}
+		while (m_mapResults.size() != requests.size()) {
+			// wait
+		}
+		} catch (SocketException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		List<Result> results = m_mapResults;
+		m_mapResults.clear();
+		return results;
 	}
 	private static final String TAG = "BroadcastRequest";
 	private static final String REMOTE_KEY = "MapShare";
@@ -62,6 +87,8 @@ public class BroadcastManager extends Thread{
 	final CountDownLatch latch_two = new CountDownLatch(1);
 	final CountDownLatch phone_state_latch = new CountDownLatch(1);
 	public List<Phone_Result> Result_List = new ArrayList<Phone_Result>();
+	private List<Result> m_mapResults = new ArrayList<Result>();
+	private MainActivity m_parent;
 	
 	interface MapShareReceiver {
 		void addAnnouncedServers(InetAddress[] host, int port[]);
@@ -71,7 +98,8 @@ public class BroadcastManager extends Thread{
 		mWifi = wifi;
 	}
 	
-	public BroadcastManager(WifiManager wifi, Context c) {
+	public BroadcastManager(WifiManager wifi, Context c, MainActivity parent) {
+		m_parent = parent;
 		mWifi = wifi;
 		context = c;
 	}
@@ -151,25 +179,39 @@ public class BroadcastManager extends Thread{
 			while (true) {
 				DatagramPacket packet = new DatagramPacket(buf, buf.length);
 				socket.receive(packet);
-				
-				Request o = requestFromByteArray(packet.getData());
-				
-				Log.d(TAG, "Received response " + o.toString());
-				Log.d(TAG, "IP is " + packet.getAddress().toString());
-				if (o.reqTypeStr.equals("GetPeersRequest")) {
-					//we have peer request. Start phone listener to get signal info
-					//then send packet with info back
-					Phone_Result result = fulfill_peer_request();
-					result.ip_addr = packet.getAddress();
-					Log.d("SIGNAL INFO", "Signal Strength: " + result.gsm_signal_strength);
-					Log.d("SIGNAL INFO", "Signal Bit Error Rate: " + result.gsm_bit_error_rate);
-					Result_List.add(result);
-					Log.d("RESULT LIST", "ADDED TO RESULT LIST");
-				} else if (o.reqTypeStr.equals("TileRequest")){
-					//now download like you normally would.
-				} else if (o.reqTypeStr.equals("TileResponse")){
-					//Because of the way that listenForResponses works,
-					//we will have to work something out
+				if (packet.getData()[0] <= SerializableTypes.TILE_REQUEST_T.ordinal()) {
+					Request o = requestFromByteArray(packet.getData());
+					
+					Log.d(TAG, "Received response " + o.toString());
+					Log.d(TAG, "IP is " + packet.getAddress().toString());
+					if (o.reqTypeStr.equals("GetPeersRequest")) {
+						//we have peer request. Start phone listener to get signal info
+						//then send packet with info back
+						Phone_Result result = fulfill_peer_request();
+						result.ip_addr = packet.getAddress();
+						Log.d("SIGNAL INFO", "Signal Strength: " + result.gsm_signal_strength);
+						Log.d("SIGNAL INFO", "Signal Bit Error Rate: " + result.gsm_bit_error_rate);
+						Result_List.add(result);
+						Log.d("RESULT LIST", "ADDED TO RESULT LIST");
+					} else if (o.reqTypeStr.equals("TileRequest")){
+						//now download like you normally would.
+						
+						// parse request and initialize appropriate result struct
+						for (Result cached : m_parent.m_cachedTiles) {
+							if (cached.topLeft == o.requestedTileTopLeft) {
+								byte[] responseBytes = cached.toByteArray();
+								Log.d(TAG, "Sending data " + cached.toString() + "\0");
+								
+								DatagramPacket outgoingPacket = new DatagramPacket(responseBytes, responseBytes.length,
+										getBroadcastAddress(), REQUEST_PORT);
+								socket.send(outgoingPacket);
+								return;
+							}
+						}
+					} 
+				} else {
+					Result o = resultFromByteArray(packet.getData());
+					m_mapResults.add(o);
 				}
 				
 			}
@@ -180,30 +222,29 @@ public class BroadcastManager extends Thread{
 	
 	
 	
+	private Result resultFromByteArray(byte[] data) {
+		ByteArrayInputStream s = new ByteArrayInputStream(data);
+		DataInputStream stream = new DataInputStream(s);
+		try {
+			SerializableTypes t = SerializableTypes.values()[stream.readInt()];
+			double w = stream.readDouble();
+			double h = stream.readDouble();
+			double lat = stream.readDouble();
+			double lng = stream.readDouble();
+			
+			Bitmap bmp = BitmapFactory.decodeByteArray(data,4*8+4,data.length - 4*8 - 4);
+		
+			return new Result(new LatLng(lat,lng),w,h,bmp);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+
 	//Calculate signature we need to send with request. it's a string
 	// containing hex md5sum of the challenge and REMOTE_KEY
 	// Not sure if we really need it, but it can't hurt
-	private String getSignature(String challenge) {
-		MessageDigest digest;
-		byte[] md5sum = null;
-		try {
-			digest = java.security.MessageDigest.getInstance("MD5");
-			digest.update(challenge.getBytes());
-			digest.update(REMOTE_KEY.getBytes());
-			md5sum = digest.digest();
-		} catch (NoSuchAlgorithmException e){
-			e.printStackTrace();
-		}
-		
-		StringBuffer hexString = new StringBuffer();
-		for (int k = 0; k < md5sum.length; ++k) {
-			String s = Integer.toHexString((int) md5sum[k] & 0xFF);
-			if (s.length() == 1)
-				hexString.append('0');
-			hexString.append(s);
-		}
-		return hexString.toString();
-	}
+
 	/*
 	public static void main(String[] args) {
 		new BroadcastManager(null).start();
@@ -303,6 +344,7 @@ public class BroadcastManager extends Thread{
 		return res;
 	}
 	public class Result {
+		public SerializableTypes type = SerializableTypes.TILE_RESULT_T;
 		public LatLng topLeft;
 		public double width;
 		public double height;
@@ -313,6 +355,27 @@ public class BroadcastManager extends Thread{
 			height = h;
 			topLeft = latlng;
 			map_image = bmp;
+		}
+
+		public byte[] toByteArray() {
+			ByteArrayOutputStream outstream = new ByteArrayOutputStream();
+			DataOutputStream d = new DataOutputStream(outstream);
+			try {
+				d.writeInt(type.ordinal());
+				d.writeDouble(width);
+				d.writeDouble(height);
+				d.writeDouble(topLeft.latitude);
+				d.writeDouble(topLeft.longitude);
+				
+				ByteArrayOutputStream stream = new ByteArrayOutputStream();
+				map_image.compress(Bitmap.CompressFormat.PNG, 100, stream);
+				d.write(stream.toByteArray());
+				return outstream.toByteArray();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			return null;
 		}
 	}
 	public class Request {

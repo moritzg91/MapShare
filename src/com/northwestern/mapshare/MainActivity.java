@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
 	
 	private final Context m_context = this;
 	private Thread m_cacheViewThread;
-	private List<Result> m_cachedTiles;
+	public List<Result> m_cachedTiles;
 	
 	private Map<Integer,Phone_Result> m_peers;
 
@@ -87,7 +87,7 @@ public class MainActivity extends Activity {
         Log.d("WifiManager", "WiFi Status: " + info.toString());
         
         //Create Broadcast Manager and run thread
-        m_broadcastMngr = new BroadcastManager(m_wifiMngr,c);//.start();
+        m_broadcastMngr = new BroadcastManager(m_wifiMngr,c,this);//.start();
         m_broadcastMngr.start();
         
         //Use latch to wait so that we don't start doing map segment requests
@@ -192,10 +192,11 @@ public class MainActivity extends Activity {
 		switch (m_NETWORKING_MODE) {
 		case BROADCAST:
 			//so now we have chosen address. Initiate download from rated peers
-			List<Request> req_list = initSegmentList(chosenAddr, 5);
+			List<Request> req_list = initSegmentList(chosenAddr, m_gMap.getCameraPosition().zoom);
 			//now divide based on number of peers
 			int num_for_each = 2; //req_list is size 4, so 2 for peer, 2 for us (hardcoded for now)
 			//give 2 to peer
+			m_broadcastMngr.requestSegments(req_list);
 			//this means send request for download via BroadcastManager mBroadcastMngr
 			//request is "TileRequest"
 			
