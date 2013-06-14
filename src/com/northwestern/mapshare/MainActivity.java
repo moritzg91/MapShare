@@ -198,11 +198,11 @@ public class MainActivity extends Activity {
 			//now divide based on number of peers
 			int num_for_each = 2; //req_list is size 4, so 2 for peer, 2 for us (hardcoded for now)
 			//give 2 to peer
-			m_broadcastMngr.requestSegments(req_list);
+			List<Result> results = m_broadcastMngr.requestSegments(m_peers,req_list);
 			//this means send request for download via BroadcastManager mBroadcastMngr
 			//request is "TileRequest"
-			
-			break;
+			this.renderMap(results);
+			return;
     	case TRADITIONAL_3G_OR_WIFI:
     		if (m_mapRenderView != null) {
     			m_mapRenderView = null;
@@ -225,18 +225,6 @@ public class MainActivity extends Activity {
              m_cacheViewThread.start();
     		 
     		 return;
-    	case PSEUDOCAST_AND_3G:
-    		camPosn = m_gMap.getCameraPosition();
-         	//LatLng coords = camPosn.target;
-         	zoomLvl = camPosn.zoom;
-    		List<Request> segmentsToRequest = this.initSegmentList(chosenAddr,zoomLvl);
-    		List<Result> results = m_broadcastMngr.requestSegments(segmentsToRequest);
-
-    		this.renderMap(results);
-
-    		return;
-    	case PSEUDOCAST_CACHE_ONLY:
-    		break;
     	}
 	}
 	

@@ -2,6 +2,7 @@ package com.northwestern.mapshare;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -41,12 +42,12 @@ import com.google.android.gms.maps.model.LatLng;
 public class BroadcastManager extends Thread{
 	
 	public enum SerializableTypes {
-		REQUEST_T, 
+		DISCOVERY_REQUEST_T, 
 		TILE_REQUEST_T,
 		TILE_RESULT_T;
 	}
 	
-	public List<Result> requestSegments(List<Request> requests) {
+	public List<Result> requestSegments(Map<Integer,Phone_Result> listofpeers, List<Request> requests) {
 		DatagramSocket socket;
 		try {
 			socket = new DatagramSocket(REQUEST_PORT);
@@ -118,7 +119,7 @@ public class BroadcastManager extends Thread{
 			socket.setBroadcast(true);
 			socket.setSoTimeout(TIMEOUT_MS);
 			
-			sendMapShareRequest(socket,new Request("GetPeersRequest",SerializableTypes.REQUEST_T));
+			sendMapShareRequest(socket,new Request("DiscoveryRequest",SerializableTypes.DISCOVERY_REQUEST_T));
 			
 			//I'm thinking that we just leave this running, so turn off the setSoTimeout.
 			//We won't need to do that until we test w/ both phones so I'm going to leave it in for now
@@ -413,7 +414,7 @@ public class BroadcastManager extends Thread{
 		//strbuf[(int)data[1] - 1] = '\0';
 		String s = new String(strbuf);
 		switch (t) {
-			case REQUEST_T:
+			case DISCOVERY_REQUEST_T:
 				return new Request(s,t);
 			case TILE_REQUEST_T:
 			// TODO: unserialize the tile latlng here
