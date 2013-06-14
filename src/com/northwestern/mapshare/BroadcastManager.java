@@ -50,13 +50,16 @@ public class BroadcastManager extends Thread{
 	private static final int TIMEOUT_MS = 500;
 	private boolean keep_running = true;
 	private Context context;
-	public Handler mHandler;// = new Handler(Looper.getMainLooper());
+	public Handler mHandler;// = new Handler();//(Looper.getMainLooper());
+	public Runnable mRunnable;
 	myPhoneStateListener myListener;
 	public int tID = 0;
+	public boolean wait_to_proceed = true;
 	
 	private static final String mChallenge = "something";
 	private WifiManager mWifi;
 	final CountDownLatch latch_one = new CountDownLatch(1);
+	final CountDownLatch latch_two = new CountDownLatch(1);
 	final CountDownLatch phone_state_latch = new CountDownLatch(1);
 	public List<Phone_Result> Result_List = new ArrayList<Phone_Result>();
 	
@@ -74,6 +77,9 @@ public class BroadcastManager extends Thread{
 	}
 	public void waiting_one() throws InterruptedException{
 		latch_one.await();
+	}
+	public void waiting_two() throws InterruptedException{
+		latch_two.await();
 	}
 
 
@@ -137,7 +143,7 @@ public class BroadcastManager extends Thread{
 	//@throws IOException
 	/* IMPORTANT
 	 * Alright, so I think I just wrapped my head around how to do all this, 
-	 * so in theory this shouldn't take too long to implement. Using the request
+	 * so in theory this shouldn't take too long to implement.
 	 */
 	private void listenForResponses(DatagramSocket socket) throws IOException {
 		byte[] buf = new byte[1024];
@@ -159,6 +165,11 @@ public class BroadcastManager extends Thread{
 					Log.d("SIGNAL INFO", "Signal Bit Error Rate: " + result.gsm_bit_error_rate);
 					Result_List.add(result);
 					Log.d("RESULT LIST", "ADDED TO RESULT LIST");
+				} else if (o.reqTypeStr.equals("TileRequest")){
+					//now download like you normally would.
+				} else if (o.reqTypeStr.equals("TileResponse")){
+					//Because of the way that listenForResponses works,
+					//we will have to work something out
 				}
 				
 			}
@@ -214,6 +225,7 @@ public class BroadcastManager extends Thread{
 		
 		public myPhoneStateListener(){
 			signal_strength = 0;
+			signal_err_rate = 0;
 		}
 		@Override
 	    public void onSignalStrengthsChanged(SignalStrength signalStrength) {
@@ -230,12 +242,35 @@ public class BroadcastManager extends Thread{
 	public Phone_Result fulfill_peer_request() {
 		Phone_Result res = new Phone_Result();
 		TelephonyManager tel;
+		Looper.prepare();
+		//myListener = new myPhoneStateListener();
+		/*
+		mHandler = new Handler();//Looper.getMainLooper());
+		mRunnable = new Runnable(){
+			public void run(){
+				phone_state_latch.countDown();
+				myListener = new myPhoneStateListener();
+			}
+		};
+		mHandler.post(mRunnable);
+		Looper.loop();
 		
-		//Looper.prepare();
+		/*
+		Thread new_thread = new Thread() {
+			@Override
+			public void run() throws InterruptedException {
+				while(true) {
+					mHandler.post(mRunnable);
+				}
+			}
+			
+		};
+		new_thread.start();
+		
 		
         //Due to some shit involving threads, something called a looper, and handlers,
         //we have to wrap this call
-        mHandler.post(new Runnable() {
+        /mHandler.post(new Runnable() {
         	public void run() {
         		myListener = new myPhoneStateListener();
         		Log.d("RUNNABLE DEBUG", "CREATED myListener");
@@ -243,25 +278,28 @@ public class BroadcastManager extends Thread{
         		Log.d("RUNNABLE DEBUG", "Countdown done");
         		tID = android.os.Process.getThreadPriority(Process.myTid());
         	}
-        });
-        
-        //I have a feeling this is a concurrency necessity
+        });*/
+        //phone_state_latch.countDown();
+        /*I have a feeling this is a concurrency necessity
         try {
         		if (tID != 0)
         			Log.d("THREAD ID","tID is : " + tID);
         	phone_state_latch.await();
+        	//new_thread.stop();
 			
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
+		}*/
+        myListener = new myPhoneStateListener();
+        Log.d("LISTERN", "STUFF LIKE : " + myListener.signal_strength);
         tel = ( TelephonyManager )context.getSystemService(Context.TELEPHONY_SERVICE);
-        while (myListener.signal_strength == 0) {
-        	tel.listen(myListener ,PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
-        }
+        //while (myListener.signal_strength == 0) {
+        tel.listen(myListener ,PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+        
         tel.listen(myListener, PhoneStateListener.LISTEN_NONE);
-        res.gsm_signal_strength = myListener.signal_strength;
-        res.gsm_bit_error_rate = myListener.signal_err_rate;
+        res.gsm_signal_strength = myListener.LISTEN_SIGNAL_STRENGTHS;
+        res.gsm_bit_error_rate = 1;
 		return res;
 	}
 	public class Result {

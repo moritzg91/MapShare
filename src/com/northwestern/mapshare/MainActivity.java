@@ -47,6 +47,7 @@ public class MainActivity extends Activity {
 	public enum NetworkingMode {
 		TRADITIONAL_3G_OR_WIFI, // just download over 3G
 		PSEUDOCAST_AND_3G, // actively schedule DL on other phones
+		BROADCAST,
 		PSEUDOCAST_CACHE_ONLY // just get data that other phones have in cache, but don't initiate downloads on other phones
 	};
 
@@ -91,13 +92,21 @@ public class MainActivity extends Activity {
         
         //Use latch to wait so that we don't start doing map segment requests
         //before we have list of phones. waiting does this.
+        /*
         try {
-			m_broadcastMngr.waiting();
+			m_broadcastMngr.waiting_one();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}*/
+        
+        try {
+			m_broadcastMngr.waiting_one();
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
+        
         Log.d("LENGTH OF RESULTS", "length is: " + m_broadcastMngr.Result_List.size());
         m_peers = ratePeers(m_broadcastMngr.Result_List);
         Log.d("Rated Peers", "Size of map is " + m_peers.size());
@@ -181,6 +190,16 @@ public class MainActivity extends Activity {
 		float zoomLvl;
 		CameraPosition camPosn;
 		switch (m_NETWORKING_MODE) {
+		case BROADCAST:
+			//so now we have chosen address. Initiate download from rated peers
+			List<Request> req_list = initSegmentList(chosenAddr, 5);
+			//now divide based on number of peers
+			int num_for_each = 2; //req_list is size 4, so 2 for peer, 2 for us (hardcoded for now)
+			//give 2 to peer
+			//this means send request for download via BroadcastManager mBroadcastMngr
+			//request is "TileRequest"
+			
+			break;
     	case TRADITIONAL_3G_OR_WIFI:
     		if (m_mapRenderView != null) {
     			m_mapRenderView = null;
