@@ -80,7 +80,7 @@ public class BroadcastManager extends Thread{
 	public Runnable mRunnable;
 	myPhoneStateListener myListener;
 	public int tID = 0;
-	public boolean wait_to_proceed = true;
+	public boolean peers_acquired = false;
 	
 	private static final String mChallenge = "something";
 	private WifiManager mWifi;
@@ -117,7 +117,7 @@ public class BroadcastManager extends Thread{
 		try{
 			DatagramSocket socket = new DatagramSocket(REQUEST_PORT);
 			socket.setBroadcast(true);
-			socket.setSoTimeout(TIMEOUT_MS);
+			//socket.setSoTimeout(TIMEOUT_MS);
 			
 			sendMapShareRequest(socket,new Request("DiscoveryRequest",SerializableTypes.DISCOVERY_REQUEST_T));
 			
@@ -133,7 +133,7 @@ public class BroadcastManager extends Thread{
 		for (int i = 0; i <Result_List.size();i++) {
 			Log.d("RESULTS", "Result IP: " + Result_List.get(i));
 		}
-		latch_one.countDown();
+		
 	}
 	
 	
@@ -170,14 +170,19 @@ public class BroadcastManager extends Thread{
 	//@param socket
 	//   socket on which the announcement request was sent
 	//@throws IOException
-	/* IMPORTANT
-	 * Alright, so I think I just wrapped my head around how to do all this, 
-	 * so in theory this shouldn't take too long to implement.
-	 */
+
 	private void listenForResponses(DatagramSocket socket) throws IOException {
 		byte[] buf = new byte[1024];
+		int num_peers = 0;
 		try {
 			while (true) {
+				//check to see if we have a number of peers so that we can release the lock
+				if (!peers_acquired) {
+					if (Result_List.size() == 2) {
+						peers_acquired = true;
+						latch_one.countDown();
+					}
+				}
 				DatagramPacket packet = new DatagramPacket(buf, buf.length);
 				socket.receive(packet);
 				if (packet.getData()[0] <= SerializableTypes.TILE_REQUEST_T.ordinal()) {
@@ -257,10 +262,8 @@ public class BroadcastManager extends Thread{
 	
 	//getting signal strength is a bit of a pain,
 	//have to extend PhoneStateListener then use context and telephony manager
-	//to listen. Apparently there may be another way to do this, but the vast
-	//majority of people use this way: you can only get the signalstrength
-	//when it is changed. Not ideal by any means, but hopefully this happens
-	//fairly often on a lower level...
+	//to listen. Upon initialization the phonestatelistener acquires the current
+	//signal strength.
 	public class myPhoneStateListener extends PhoneStateListener {
 		
 		int signal_strength;
@@ -286,54 +289,7 @@ public class BroadcastManager extends Thread{
 		Phone_Result res = new Phone_Result();
 		TelephonyManager tel;
 		Looper.prepare();
-		//myListener = new myPhoneStateListener();
-		/*
-		mHandler = new Handler();//Looper.getMainLooper());
-		mRunnable = new Runnable(){
-			public void run(){
-				phone_state_latch.countDown();
-				myListener = new myPhoneStateListener();
-			}
-		};
-		mHandler.post(mRunnable);
-		Looper.loop();
 		
-		/*
-		Thread new_thread = new Thread() {
-			@Override
-			public void run() throws InterruptedException {
-				while(true) {
-					mHandler.post(mRunnable);
-				}
-			}
-			
-		};
-		new_thread.start();
-		
-		
-        //Due to some shit involving threads, something called a looper, and handlers,
-        //we have to wrap this call
-        /mHandler.post(new Runnable() {
-        	public void run() {
-        		myListener = new myPhoneStateListener();
-        		Log.d("RUNNABLE DEBUG", "CREATED myListener");
-        		phone_state_latch.countDown();
-        		Log.d("RUNNABLE DEBUG", "Countdown done");
-        		tID = android.os.Process.getThreadPriority(Process.myTid());
-        	}
-        });*/
-        //phone_state_latch.countDown();
-        /*I have a feeling this is a concurrency necessity
-        try {
-        		if (tID != 0)
-        			Log.d("THREAD ID","tID is : " + tID);
-        	phone_state_latch.await();
-        	//new_thread.stop();
-			
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}*/
         myListener = new myPhoneStateListener();
         Log.d("LISTERN", "STUFF LIKE : " + myListener.signal_strength);
         tel = ( TelephonyManager )context.getSystemService(Context.TELEPHONY_SERVICE);
@@ -432,6 +388,57 @@ public class BroadcastManager extends Thread{
 	}
 	/*
 	 * Functions that don't work / we don't need, but they might have useful code for later
+	 * 
+	 * 
+	 * //myListener = new myPhoneStateListener();
+		/*
+		mHandler = new Handler();//Looper.getMainLooper());
+		mRunnable = new Runnable(){
+			public void run(){
+				phone_state_latch.countDown();
+				myListener = new myPhoneStateListener();
+			}
+		};
+		mHandler.post(mRunnable);
+		Looper.loop();
+		
+		/*
+		Thread new_thread = new Thread() {
+			@Override
+			public void run() throws InterruptedException {
+				while(true) {
+					mHandler.post(mRunnable);
+				}
+			}
+			
+		};
+		new_thread.start();
+		
+		
+        //Due to some shit involving threads, something called a looper, and handlers,
+        //we have to wrap this call
+        /mHandler.post(new Runnable() {
+        	public void run() {
+        		myListener = new myPhoneStateListener();
+        		Log.d("RUNNABLE DEBUG", "CREATED myListener");
+        		phone_state_latch.countDown();
+        		Log.d("RUNNABLE DEBUG", "Countdown done");
+        		tID = android.os.Process.getThreadPriority(Process.myTid());
+        	}
+        });*/
+        //phone_state_latch.countDown();
+        /*I have a feeling this is a concurrency necessity
+        try {
+        		if (tID != 0)
+        			Log.d("THREAD ID","tID is : " + tID);
+        	phone_state_latch.await();
+        	//new_thread.stop();
+			
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	
 	public void listen_for_broadcasts(){
 		try{
 			DatagramSocket mSocket = new DatagramSocket(null);
